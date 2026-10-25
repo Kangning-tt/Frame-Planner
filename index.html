@@ -54,9 +54,9 @@
     main{max-width:none;padding:0}
     .card{border:none;padding:0;margin:0}
     #summarySvg{border:none;max-width:none}
-    @page{size:A3 portrait;margin:10mm}
   }
 </style>
+<style id="pageStyle" media="print">@page{size:A3 portrait;margin:10mm}</style>
 </head>
 <body>
 <header>
@@ -70,6 +70,7 @@
 <section class="screen active" id="s-canvas">
   <div class="card">
     <div class="row">
+      <div class="row" style="gap:6px"><button class="tpl primary" data-t="1">Template 1 · 250 × 250</button><button class="tpl" data-t="2">Template 2 · 300 × 200</button></div>
       <span class="hint">Tap a corner to choose its joint. You must use at least two different joints.</span>
     </div>
   </div>
@@ -113,7 +114,7 @@
       <button class="primary" id="btnPrint">Print 1:1 template</button>
       <button id="btnChange">Change a joint</button>
     </div>
-    <p class="hint">Print on A3 at 100% (no "fit to page"). At the bench: lay out your rails, mark out from the sheet, then your partner checks the three items and signs before you cut.</p>
+    <p class="hint">Print on A3 at 100% (no "fit to page"); the page turns landscape for Template 2. At the bench: lay out your rails, mark out from the sheet, then your partner checks the three items and signs before you cut.</p>
   </div>
   <div class="card">
     <svg id="summarySvg"></svg>
@@ -175,8 +176,13 @@ function photoOr(key,fallback,size){
   return fallback;
 }
 
+/* ---------------- Templates ---------------- */
+const TEMPLATES={1:[250,250,40],2:[300,200,40]};
+function setTemplate(t){state.preset=TEMPLATES[t];document.querySelectorAll('.tpl').forEach(b=>b.classList.toggle('primary',b.dataset.t===String(t)));drawFrame();}
+document.addEventListener('DOMContentLoaded',()=>document.querySelectorAll('.tpl').forEach(b=>b.addEventListener('click',()=>setTemplate(+b.dataset.t))));
+
 /* ---------------- State layer ---------------- */
-const state = {preset:[250,40], corners:{TL:null,TR:null,BL:null,BR:null}, editing:null, pendingJoint:null, questions:[], qi:0};
+const state = {preset:[250,250,40], corners:{TL:null,TR:null,BL:null,BR:null}, editing:null, pendingJoint:null, questions:[], qi:0};
 function cornersFilled(){return POS.every(p=>state.corners[p]&&state.corners[p].joint&&state.corners[p].orient!==undefined);}
 function jointTypes(){return new Set(POS.map(p=>state.corners[p]&&state.corners[p].joint).filter(Boolean)).size;}
 function canCheck(){return cornersFilled()&&jointTypes()>=2;}
@@ -293,10 +299,10 @@ function hull(pts){ // convex hull (monotone chain) of [x,y] points
 }
 function boxHull(x0,x1,y0,y1,z0,z1){const pts=[];[x0,x1].forEach(x=>[y0,y1].forEach(y=>[z0,z1].forEach(z=>pts.push(P3(x,y,z)))));return hull(pts);}
 function drawFrame(){
-  const [O,w]=state.preset, T=RMETA.T;
-  const cornerW={TL:[0,0],TR:[O,0],BL:[0,O],BR:[O,O]};
+  const [OW,OH,w]=state.preset, T=RMETA.T;
+  const cornerW={TL:[0,0],TR:[OW,0],BL:[0,OH],BR:[OW,OH]};
   // extent of the composite
-  const all=boxHull(-2,O+2,-2,O+2,0,T); const xs=all.map(p=>p[0]), ys=all.map(p=>p[1]);
+  const all=boxHull(-2,OW+2,-2,OH+2,0,T); const xs=all.map(p=>p[0]), ys=all.map(p=>p[1]);
   const minx=Math.min(...xs)-6, maxx=Math.max(...xs)+6, miny=Math.min(...ys)-16, maxy=Math.max(...ys)+6;
   let defs='', imgs='', hits='';
   // draw far corners first (TL, TR), then near (BL, BR)
@@ -307,13 +313,13 @@ function drawFrame(){
     const [cx,cy]=P3(cornerW[p][0],cornerW[p][1],0);
     const x=cx-m.ox, y=cy-m.oy;
     // clip each corner image to its own quadrant of the frame (so rails from two corners join seamlessly)
-    const qx=(p==='TL'||p==='BL')?[-1,O/2]:[O/2,O+1], qy=(p==='TL'||p==='TR')?[-1,O/2]:[O/2,O+1];
+    const qx=(p==='TL'||p==='BL')?[-1,OW/2]:[OW/2,OW+1], qy=(p==='TL'||p==='TR')?[-1,OH/2]:[OH/2,OH+1];
     const poly=boxHull(qx[0],qx[1],qy[0],qy[1],-0.5,T+0.5).map(q=>q.join(',')).join(' ');
     defs+=`<clipPath id="clip-${p}"><polygon points="${poly}"/></clipPath>`;
     const svg=RENDERS[key].replace('<svg ',`<svg x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${m.w}" height="${m.h}" `).replace('width="100%"','');
     imgs+=`<g clip-path="url(#clip-${p})">${svg}</g>`;
     // tappable corner square
-    const hx=(p==='TL'||p==='BL')?[0,w]:[O-w,O], hy=(p==='TL'||p==='TR')?[0,w]:[O-w,O];
+    const hx=(p==='TL'||p==='BL')?[0,w]:[OW-w,OW], hy=(p==='TL'||p==='TR')?[0,w]:[OH-w,OH];
     const hp=boxHull(hx[0],hx[1],hy[0],hy[1],0,T).map(q=>q.join(',')).join(' ');
     const [lx,ly]=P3((hx[0]+hx[1])/2,(hy[0]+hy[1])/2,T);
     hits+=`<polygon class="corner-hit" data-pos="${p}" points="${hp}"/>`+(c?'':`<text class="corner-label" x="${lx}" y="${ly+4}" text-anchor="middle" font-size="12">${p}</text>`);
@@ -382,7 +388,7 @@ const RAILS=[
   {n:2,name:'Right rail', piece:'B',ends:['TR','BR'],off:[EXPL,0]},
   {n:3,name:'Bottom rail',piece:'A',ends:['BL','BR'],off:[0,EXPL]},
 ];
-function cornerWorld(pos,O){return {TL:[0,0],TR:[O,0],BL:[0,O],BR:[O,O]}[pos];}
+function cornerWorld(pos,OW,OH){return {TL:[0,0],TR:[OW,0],BL:[0,OH],BR:[OW,OH]}[pos];}
 function endInfo(pos,piece){ // what this rail gets at this corner
   const c=state.corners[pos]; if(!c) return {joint:'plain',orient:0,face:'none',holes:'none'};
   const isTop = (piece==='A') ? c.orient===0 : c.orient===1;   // this rail is the 'top / carries the lap / tail / runs through' rail
@@ -394,9 +400,9 @@ function endInfo(pos,piece){ // what this rail gets at this corner
   return {joint:c.joint,orient:c.orient,face,holes};
 }
 function drawRails(){
-  const [O,w]=state.preset, T=RMETA.T, view=state.view;
+  const [OW,OH,w]=state.preset, T=RMETA.T, view=state.view;
   const svg=document.getElementById('railsSvg');
-  const all=boxHull(-EXPL-2,O+EXPL+2,-EXPL-2,O+EXPL+2,0,T); const xs=all.map(p=>p[0]), ys=all.map(p=>p[1]);
+  const all=boxHull(-EXPL-2,OW+EXPL+2,-EXPL-2,OH+EXPL+2,0,T); const xs=all.map(p=>p[0]), ys=all.map(p=>p[1]);
   const minx=Math.min(...xs)-6, maxx=Math.max(...xs)+6, miny=Math.min(...ys)-16, maxy=Math.max(...ys)+6;
   let defs='', imgs='', labels='';
   RAILS.forEach(r=>{
@@ -404,13 +410,13 @@ function drawRails(){
       const e=endInfo(pos,r.piece);
       const key=`rail-${r.piece}-${e.joint}-${e.orient}-${pos}-${view}`;
       const m=RMETA.keys[key]; if(!m){console.warn('missing',key);return;}
-      const cw=cornerWorld(pos,O);
+      const cw=cornerWorld(pos,OW,OH);
       const [cx,cy]=P3(cw[0]+r.off[0],cw[1]+r.off[1],0);
       const x=cx-m.ox, y=cy-m.oy;
       // clip to this end's half of the rail (the two halves meet at the midpoint)
       let qx,qy;
-      if(r.piece==='A'){ qx=(pos==='TL'||pos==='BL')?[-1,O/2]:[O/2,O+1]; qy=(pos==='TL'||pos==='TR')?[-1,w+1]:[O-w-1,O+1]; }
-      else             { qy=(pos==='TL'||pos==='TR')?[-1,O/2]:[O/2,O+1]; qx=(pos==='TL'||pos==='BL')?[-1,w+1]:[O-w-1,O+1]; }
+      if(r.piece==='A'){ qx=(pos==='TL'||pos==='BL')?[-1,OW/2]:[OW/2,OW+1]; qy=(pos==='TL'||pos==='TR')?[-1,w+1]:[OH-w-1,OH+1]; }
+      else             { qy=(pos==='TL'||pos==='TR')?[-1,OH/2]:[OH/2,OH+1]; qx=(pos==='TL'||pos==='BL')?[-1,w+1]:[OW-w-1,OW+1]; }
       const poly=boxHull(qx[0]+r.off[0],qx[1]+r.off[0],qy[0]+r.off[1],qy[1]+r.off[1],-0.5,T+0.5).map(q=>q.join(',')).join(' ');
       const id=`clip-${r.n}-${pos}`;
       defs+=`<clipPath id="${id}"><polygon points="${poly}"/></clipPath>`;
@@ -418,7 +424,7 @@ function drawRails(){
       imgs+=`<g clip-path="url(#${id})">${im}</g>`;
     });
     // rail number at the middle of the rail
-    const mid = r.piece==='A' ? [O/2+r.off[0], ((r.ends[0]==='TL')?w/2:O-w/2)+r.off[1]] : [((r.ends[0]==='TL')?w/2:O-w/2)+r.off[0], O/2+r.off[1]];
+    const mid = r.piece==='A' ? [OW/2+r.off[0], ((r.ends[0]==='TL')?w/2:OH-w/2)+r.off[1]] : [((r.ends[0]==='TL')?w/2:OW-w/2)+r.off[0], OH/2+r.off[1]];
     const [lx,ly]=P3(mid[0],mid[1],T);
     labels+=`<circle cx="${lx}" cy="${ly}" r="11" fill="#fff" stroke="#222"/><text x="${lx}" y="${ly+4.5}" text-anchor="middle" font-size="13" font-weight="700" font-family="sans-serif">${r.n}</text>`;
   });
@@ -436,21 +442,22 @@ document.getElementById('btnBackCanvas').addEventListener('click',()=>show('s-ca
 /* ---------------- Screen: summary (1:1 template) ---------------- */
 function showSummary(){show('s-summary','Step 3 of 3 · Your template');drawSummary();}
 function drawSummary(){
-  const [O,w]=state.preset, pad=12, H=O+70;
+  const [OW,OH,w]=state.preset, pad=8, H=OH+70;
+  document.getElementById('pageStyle').textContent=`@page{size:A3 ${OW>OH?'landscape':'portrait'};margin:10mm}`;
   const svg=document.getElementById('summarySvg');
-  svg.setAttribute('width',`${O+pad*2}mm`); svg.setAttribute('height',`${H+pad*2}mm`);
-  svg.setAttribute('viewBox',`${-pad} ${-pad} ${O+pad*2} ${H+pad*2}`);
+  svg.setAttribute('width',`${OW+pad*2}mm`); svg.setAttribute('height',`${H+pad*2}mm`);
+  svg.setAttribute('viewBox',`${-pad} ${-pad} ${OW+pad*2} ${H+pad*2}`);
   let s='';
   s+=`<text x="0" y="-4" font-size="4" font-family="sans-serif">Name: ${esc(document.getElementById('fName').value)||'____________'}   Date: ________</text>`;
-  s+=`<rect x="0" y="0" width="${O}" height="${O}" fill="none" stroke="#222" stroke-width=".4"/>`;
-  s+=`<rect x="${w}" y="${w}" width="${O-2*w}" height="${O-2*w}" fill="none" stroke="#222" stroke-width=".4"/>`;
+  s+=`<rect x="0" y="0" width="${OW}" height="${OH}" fill="none" stroke="#222" stroke-width=".4"/>`;
+  s+=`<rect x="${w}" y="${w}" width="${OW-2*w}" height="${OH-2*w}" fill="none" stroke="#222" stroke-width=".4"/>`;
   // rail numbers (match the numbers written on the wood)
-  [[O/2,w/2,'1'],[O-w/2,O/2,'2'],[O/2,O-w/2,'3'],[w/2,O/2,'4']].forEach(([nx,ny,t])=>{s+=`<circle cx="${nx}" cy="${ny}" r="5" fill="#fff" stroke="#222" stroke-width=".4"/><text x="${nx}" y="${ny+2}" font-size="5.5" font-weight="700" text-anchor="middle" font-family="sans-serif">${t}</text>`;});
+  [[OW/2,w/2,'1'],[OW-w/2,OH/2,'2'],[OW/2,OH-w/2,'3'],[w/2,OH/2,'4']].forEach(([nx,ny,t])=>{s+=`<circle cx="${nx}" cy="${ny}" r="5" fill="#fff" stroke="#222" stroke-width=".4"/><text x="${nx}" y="${ny+2}" font-size="5.5" font-weight="700" text-anchor="middle" font-family="sans-serif">${t}</text>`;});
   POS.forEach(p=>{
     const c=state.corners[p];
-    const x=(p==='TL'||p==='BL')?0:O-w, y=(p==='TL'||p==='TR')?0:O-w;
+    const x=(p==='TL'||p==='BL')?0:OW-w, y=(p==='TL'||p==='TR')?0:OH-w;
     s+=`<g transform="translate(${x},${y})"><g transform="${posTransform(p,w)}"><g transform="scale(${w/100})">${planCorner(c.joint,c.orient,100).replace(/stroke-width="1.2"/g,'stroke-width="1"')}</g></g></g>`;
-    const lx=(p==='TL'||p==='BL')?w+3:O-w-3, ly=(p==='TL'||p==='TR')?w+5:O-w-2, anchor=(p==='TL'||p==='BL')?'start':'end';
+    const lx=(p==='TL'||p==='BL')?w+3:OW-w-3, ly=(p==='TL'||p==='TR')?w+5:OH-w-2, anchor=(p==='TL'||p==='BL')?'start':'end';
     s+=`<text x="${lx}" y="${ly}" font-size="3.5" font-family="sans-serif" text-anchor="${anchor}">${JOINTS[c.joint].name} · ${orientLabel(c.joint,c.orient,p)}</text>`;
   });
   const notes=['Number your rails 1–4 on the back (as shown) and put a face mark on the front. Lay them on this sheet, front faces up.',
@@ -460,8 +467,8 @@ function drawSummary(){
     '      [  ] at each corner, the lines marked on the wood match the drawing on this sheet      signed: ____________',
     'Check measurements while working.',
     'To change a joint: go back to Frame Planner and print a new sheet.'];
-  notes.forEach((n,i)=>{const num=(i===3||i===4)?'':(i<3?i+1:i-2)+'. ';s+=`<text x="0" y="${O+20+i*7}" font-size="4" font-family="sans-serif" ${i===2?'font-weight="bold"':''}>${num}${n}</text>`;});
-  s+=`<text x="${O}" y="${O+6}" font-size="3.5" text-anchor="end" font-family="sans-serif">solid = visible edge · dashed = hidden edge</text>`;
+  notes.forEach((n,i)=>{const num=(i===3||i===4)?'':(i<3?i+1:i-2)+'. ';s+=`<text x="0" y="${OH+20+i*7}" font-size="4" font-family="sans-serif" ${i===2?'font-weight="bold"':''}>${num}${n}</text>`;});
+  s+=`<text x="${OW}" y="${OH+6}" font-size="3.5" text-anchor="end" font-family="sans-serif">solid = visible edge · dashed = hidden edge</text>`;
   svg.innerHTML=s;
 }
 function esc(t){return (t||'').replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));}
