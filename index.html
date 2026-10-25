@@ -92,12 +92,11 @@
 <section class="screen" id="s-check">
   <div class="card">
     <h2 style="font-size:18px;margin:0 0 4px">Your four rails</h2>
-    <p class="hint" style="margin:0 0 10px">This is what each rail will look like once it is cut, from the corners you chose.</p>
+    <p class="hint" style="margin:0 0 10px">This is what each rail will look like once it is cut, from the joints you chose.</p>
     <div id="frameWrap">
       <svg id="railsSvg" width="560" height="470"></svg>
       <div id="legend">
         <div class="row" style="margin-bottom:10px"><button id="btnFlip">Show backs</button><span class="hint" id="viewLabel">Front faces up</span></div>
-        <div id="railList"></div>
         <div class="row" style="margin-top:16px"><button class="primary" id="btnToSheet">Next → your template</button></div>
         <div class="row" style="margin-top:8px"><button id="btnBackCanvas">← Back to plan</button></div>
       </div>
@@ -427,10 +426,6 @@ function drawRails(){
   svg.innerHTML=`<defs>${defs}</defs>${imgs}${labels}`;
   document.getElementById('viewLabel').textContent = view==='front' ? 'Front faces up' : 'Backs up (rails turned over)';
   document.getElementById('btnFlip').textContent = view==='front' ? 'Show backs' : 'Show fronts';
-  document.getElementById('railList').innerHTML = RAILS.slice().sort((a,b)=>a.n-b.n).map(r=>{
-    const ends=r.ends.map(pos=>{const c=state.corners[pos];return c?`${POSNAME[pos]}: ${JOINTS[c.joint].name}, ${orientLabel(c.joint,c.orient,pos)}`:`${POSNAME[pos]}: —`;}).join('<br>');
-    return `<div style="margin:8px 0;padding:8px;border:1px solid #ddd;border-radius:8px"><b>${r.n} · ${r.name}</b><div class="hint">${ends}</div></div>`;
-  }).join('');
 }
 function startCheck(){show('s-check','Step 2 of 3 · Your rails');state.view='front';drawRails();}
 document.getElementById('btnFlip').addEventListener('click',()=>{state.view=state.view==='front'?'back':'front';drawRails();});
